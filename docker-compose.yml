@@ -1,0 +1,50 @@
+version: '3.8'
+services:
+  pgprimary:
+    image: postgres:16.2
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgprimary_data:/bitnami/postgresql
+    environment:
+      - POSTGRESQL_REPLICATION_MODE=master
+      - POSTGRESQL_REPLICATION_USER=postgres
+      - POSTGRESQL_REPLICATION_PASSWORD=s3cret
+      - POSTGRESQL_PASSWORD=s3cret
+      - POSTGRESQL_DATABASE=test_db
+
+  pgreplica:
+    image: postgres:16.2
+    ports:
+      - "5433:5432" # Изменил порт на 5433 для хоста, чтобы избежать конфликта с pgprimary
+    depends_on:
+      - pgprimary
+    environment:
+      - POSTGRESQL_REPLICATION_MODE=slave
+      - POSTGRESQL_REPLICATION_USER=postgres
+      - POSTGRESQL_REPLICATION_PASSWORD=s3cret
+      - POSTGRESQL_MASTER_HOST=pgprimary
+      - POSTGRESQL_PASSWORD=s3cret
+
+  pgpool:
+    image: bitnami/pgpool:4.5.1
+    ports:
+      - "9999:5432" # Изменил порт на 9999 для хоста, чтобы избежать конфликта с pgprimary и pgreplica
+    depends_on:
+      - pgprimary
+      - pgreplica
+    environment:
+      - PGPOOL_BACKEND_NODES=0:pgprimary:5432:4:primary:ALWAYS_PRIMARY,1:pgreplica:5433:6:replica
+      - PGPOOL_POSTGRES_USERNAME=postgres
+      - PGPOOL_POSTGRES_PASSWORD=s3cret
+      - PGPOOL_ADMIN_USERNAME=admin
+      - PGPOOL_ADMIN_PASSWORD=s3cret
+      - PGPOOL_ENABLE_LOAD_BALANCING=yes
+      - PGPOOL_ENABLE_STATEMENT_LOAD_BALANCING=yes
+      - PGPOOL_NUM_INIT_CHILDREN=10
+      - PGPOOL_MAX_POOL=1
+      - PGPOOL_SR_CHECK_USER=postgres
+      - PGPOOL_SR_CHECK_PASSWORD=s3cret
+
+volumes:
+  pgprimary_data:
